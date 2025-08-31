@@ -1,0 +1,810 @@
+we are going to USE azure datafactory for industry grade application!
+
+
+1.    az provider register --namespace Microsoft.Sql
+
+
+2.     Verify register:
+ az provider show --namespace Microsoft.Sql --query "registrationState"
+
+
+3. sql server create......
+
+az sql server create --name iot-sqlserver-arefin --resource-group t-rg --location centralindia --admin-user nazmul --admin-password "Arefin@2025sql"
+
+
+4. Allow Your IP (Raspberry Pi / Local Machine) to Connect
+
+az sql server firewall-rule create --resource-group t-rg --server iot-sqlserver-arefin --name AllowMyIP --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
+
+
+5. Create Azure Data Factory
+
+az datafactory create --resource-group t-rg --factory-name iot-adf-nazmul --location centralindia
+
+.............................achieved..........................
+
+
+6.  Install & Configure Self-hosted Integration Runtime (SHIR)
+
+Info:       Now a dedicated machine - low-power Windows mini-PC, e.g., Intel NUC is deployed for SHIR
+
+Download form:
+ https://www.microsoft.com/en-us/download/details.aspx?id=39717
+installation done at 
+
+7.  (A) Create Linked Service for Azure SQL Database
+
+az datafactory linked-service create --factory-name iot-adf-nazmul --resource-group t-rg --linked-service-name AzureSqlDatabaseLS --properties "{ \"type\": \"AzureSqlDatabase\", \"typeProperties\": { \"connectionString\": \"Server=tcp:iot-sqlserver.database.windows.net,1433;Database=tdb-azure;User ID=nazmul;Password=Arefin@2025sql;Encrypt=true;Connection Timeout=30;\" } }"
+
+
+.....done......
+
+
+(B) Create Linked Service for MariaDB (on Raspberry Pi)----working on it.....>>>>>
+
+ At first:   Create / Register Self-hosted Integration Runtime
+
+syntax:
+
+
+
+az datafactory linked-service create --factory-name iot-adf-nazmul --resource-group t-rg --linked-service-name MariaDBLS --properties "{ \"type\": \"MySql\", \"connectVia\": { \"referenceName\": \"SelfHostedIR\", \"type\": \"IntegrationRuntimeReference\" }, \"typeProperties\": { \"connectionString\": \"server=10.79.201.131;port=3306;database=tdb;user=iotuser;password=mariadb\" } }"
+
+
+
+.......done.................
+
+
+
+az datafactory integration-runtime self-hosted create ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name SelfHostedIR ^
+  --description "SHIR for MariaDB on Raspberry Pi"
+
+
+      Perfect 👍 now you have created the Self-Hosted Integration Runtime (IR) in your Data Factory.
+
+
+
+....................................AUTH KEY FOR SHIR................................
+
+az datafactory integration-runtime list-auth-key ^
+  --factory-name "iot-adf-nazmul" ^
+  --resource-group "t-rg" ^
+  --name "SelfHostedIR"
+
+
+
+
+  "authKey1": "IR@af366b5e-1746-4b38-9091-9888576607bb@iot-adf-nazmul@ServiceEndpoint=iot-adf-nazmul.centralindia.datafactory.azure.net@CLXoZW4ig8t/lK+hgP6D8JPBUtjriqF5rqPg25cqD9Q=",
+
+  "authKey2": "IR@af366b5e-1746-4b38-9091-9888576607bb@iot-adf-nazmul@ServiceEndpoint=iot-adf-nazmul.centralindia.datafactory.azure.net@VIRRVQ7rKRTD3i2CWbMzoFpQ2gSf3iAn7QkGLQFxlsU="
+
+
+Open Integration Runtime Configuration Manager → click Register.
+
+Paste authKey1 → click Register.
+
+
+......................Done..............................
+
+Once registered, Azure Portal → ADF Studio → Manage → Integration Runtimes → SelfHostedIR will show Status: Running.
+
+..........................not....tested!
+
+Next.
+
+
+Next Steps After IR Registration
+
+Create Linked Services in ADF:
+
+One for MariaDB (on-prem / Raspberry Pi) → using Self-Hosted IR.
+
+One for Azure SQL Database (your target).
+
+1.	# Create MariaDB linked service
+
+az datafactory linked-service create ^
+  --factory-name "iot-adf-nazmul" ^
+  --resource-group "t-rg" ^
+  --name "MariaDBLinkedService" ^
+  --properties "{ \"type\": \"MySql\", \"typeProperties\": { \"connectionString\": \"server=10.79.201.131;port=3306;database=tdb;user=iotuser;password=mariadb\" }, \"connectVia\": { \"referenceName\": \"SelfHostedIR\", \"type\": \"IntegrationRuntimeReference\" } }"
+
+
+
+done.....
+
+
+Create a JSON file and save at desktop:
+
+{
+  "type": "AzureSqlDatabase",
+  "typeProperties": {
+    "connectionString": "Server=tcp:iot-sqlserver-arefin.database.windows.net,1433;Database=tdb-azure;User ID=nazmul@iot-sqlserver-arefin;Password=Arefin@2025sql;Encrypt=true;TrustServerCertificate=false;Connection Timeout=30;"
+  }
+}
+
+
+save as C:\Users\arefi\azure_sql_ds.json
+
+Next...
+az datafactory linked-service create ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name AzureSqlLinkedService ^
+  --properties @C:\Users\arefi\azure_sql_ds.json
+
+done......
+
+
+Now verify..:
+az datafactory linked-service show ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name AzureSqlLinkedService
+
+
+
+done....
+Perfect!
+Now you’ve successfully created the Azure SQL linked service inside your Data Factory. 🎉
+
+
+So far, you have:
+
+✅ Resource Group (t-rg)
+
+✅ Data Factory (iot-adf-nazmul)
+
+✅ Self-Hosted IR (SelfHostedIR)
+
+✅ Linked Service to Azure SQL
+
+
+
+Step 1 — Connect to Azure SQL
+
+Open Azure Cloud Shell or your local Windows CLI and run:
+
+az sql db show-connection-string --server tdb-sqlserver --name tdb-azure --client ado.net
+
+
+op:  "Server=tcp:tdb-sqlserver.database.windows.net,1433;Initial Catalog=tdb-azure;Persist Security Info=False;User ID=<username>;Password=<password>;MultipleActiveResultSets=False;Encrypt=true;TrustServerCertificate=False;Connection Timeout=30;"
+
+
+az sql db show-connection-string --server tdb-sqlserver --name tdb-azure --client sqlcmd
+
+
+op: "sqlcmd -S tcp:tdb-sqlserver.database.windows.net,1433 -d tdb-azure -U <username> -P <password> -N -l 30"
+
+
+------------->>>>   Next:  go azure portal cmd:---------------->
+
+
+sqlcmd -S tdb-sqlserver.database.windows.net -d tdb-azure -U nazmul -P Arefin@2025sql
+
+
+Now, face problem to turn on Firewall:
+Fix: Allow your local/public IP to connect
+
+
+az sql server firewall-rule create  --resource-group t-rg --server iot-sqlserver-arefin --name AllowMyIP --start-ip-address 203.212.243.207 --end-ip-address 203.212.243.207
+
+
+Note for public IP:   curl ifconfig.me
+115.96.146.187
+
+
+
+CREATE TABLE sensordata (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    device_id NVARCHAR(50) NOT NULL,
+    timestamp DATETIME2 DEFAULT GETDATE(),
+    rpm FLOAT,
+    temperature FLOAT,
+    vibration FLOAT
+);
+
+
+
+
+.........................................
+
+az sql server firewall-rule create  --resource-group t-rg --server iot-sqlserver-arefin --name AllowMyIP --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
+
+
+Install ODBC Driver:
+
+# Install Microsoft ODBC Driver 18 for SQL Server
+winget install --id Microsoft.MsSqlODBC.18 -e --accept-source-agreements --accept-package-agreements
+
+# Install SQLCMD tools (part of MS SQL Command Line Utilities)
+winget install --id Microsoft.Sqlcmd -e --accept-source-agreements --accept-package-agreements
+
+
+......path: "C:\Program Files\SqlCmd"
+
+Option 2 — Add to PATH permanently
+
+Press Win + R → type sysdm.cpl → Enter.
+
+Go to Advanced → Environment Variables.
+
+Under System variables, select Path → Edit.
+
+Click New → paste:
+
+C:\Program Files\SqlCmd
+
+
+Click OK everywhere.
+
+Close and reopen your Command Prompt/PowerShell.
+
+Test:
+
+sqlcmd -?
+
+
+
+done sqlcmd installed.
+
+.......................................
+Now SQL login--->
+
+"C:\Program Files\SqlCmd\sqlcmd.exe" -S iot-sqlserver-arefin.database.windows.net -d master -U nazmul -P "Arefin@2025sql"
+
+1>
+
+
+PERFECT CONGRATS.......................
+
+A. I HAVE CREATED A NEW DATA BASE IN AZURE:
+
+"C:\Program Files\SqlCmd\sqlcmd.exe" -S iot-sqlserver-arefin.database.windows.net -d master -U nazmul -P "Arefin@2025sql" -Q "CREATE DATABASE [tdb-azure];"
+
+B.Verify:
+
+"C:\Program Files\SqlCmd\sqlcmd.exe" -S iot-sqlserver-arefin.database.windows.net -d master -U nazmul -P "Arefin@2025sql" -Q "SELECT name FROM sys.databases;"
+
+
+
+AZURE DATABASE QUERY START HERE:
+
+
+
+1.Check which DB you are in:
+
+SELECT DB_NAME();
+GO
+
+2. CREATE TABLE:
+
+CREATE TABLE sensor_data (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    device_id NVARCHAR(50),
+    rpm INT,
+    vibration FLOAT,
+    temperature FLOAT,
+    timestamp DATETIME2 DEFAULT SYSUTCDATETIME()
+);
+GO
+
+
+3. INSERT DATA
+
+INSERT INTO sensor_data (device_id, rpm, vibration, temperature)
+VALUES ('LOOM-1', 1200, 0.35, 32.5);
+GO
+
+.............................
+
+BIG STEP LET DATA SYNCH WITH MARIADB TO AZURE DATA FACTORY---> AZURE SQL
+
+
+
+
+🔥 Excellent progress — you’ve nailed all the foundation setup (SQL Server, DB, table, Data Factory, SHIR, Linked Services).
+Now comes the final & big step → sync MariaDB (Raspberry Pi) → Azure SQL via Azure Data Factory 🚀
+
+1.Create Datasets in ADF
+
+make  and save  mariadb_dataset.json:( SOURCE)
+
+
+{
+  "name": "MariaDB_sensor_data",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "MariaDBLinkedService",
+      "type": "LinkedServiceReference"
+    },
+    "type": "MySqlTable",
+    "typeProperties": {
+      "tableName": "sensor_data"
+    }
+  }
+}
+
+
+...............................
+
+
+
+
+az datafactory dataset create ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name MariaDB_sensor_data ^
+  --properties @C:\Users\arefi\Desktop\F2025TEXTILE\mariadb_dataset.json
+
+
+
+
+done
+
+
+Azure SQL Dataset (sink):
+
+
+
+
+azuresql_dataset.json:
+
+{
+  "name": "AzureSQL_sensor_data",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "AzureSqlLinkedService",
+      "type": "LinkedServiceReference"
+    },
+    "type": "AzureSqlTable",
+    "typeProperties": {
+      "tableName": "sensor_data"
+    }
+  }
+}
+
+
+
+....................
+
+
+
+az datafactory dataset create ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name AzureSQL_sensor_data ^
+  --properties @C:\Users\arefi\Desktop\F2025TEXTILE\azuresql_dataset.json
+
+
+DONE....................
+
+
+2. Create Pipeline (Copy Activity)
+
+Pipeline_copy.json:
+
+
+{
+  "name": "Pipeline_MariaDB_to_AzureSQL",
+  "properties": {
+    "activities": [
+      {
+        "name": "CopyFromMariaDBtoAzureSQL",
+        "type": "Copy",
+        "inputs": [
+          { "referenceName": "MariaDB_sensor_data", "type": "DatasetReference" }
+        ],
+        "outputs": [
+          { "referenceName": "AzureSQL_sensor_data", "type": "DatasetReference" }
+        ],
+        "typeProperties": {
+          "source": { "type": "RelationalSource" },
+          "sink": { "type": "SqlSink" }
+        }
+      }
+    ]
+  }
+}
+
+
+.......................... now run....
+
+az datafactory pipeline create ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name Pipeline_MariaDB_to_AzureSQL ^
+  --pipeline @C:\Users\arefi\Desktop\F2025TEXTILE\pipeline_copy.json
+
+
+
+10 ✅ Step 10: Trigger the Pipeline
+
+
+
+
+az datafactory pipeline create-run ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name Pipeline_MariaDB_to_AzureSQL
+
+
+
+
+Check run status:
+
+collect run id from previous cmd: 
+
+az datafactory pipeline-run show ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --run-id be54ab4e-8277-11f0-9ac8-5ce42af56bb6
+
+..................Failed...
+
+
+according to error dataset not found: "Operation on target CopyFromMariaDBtoAzureSQL failed: 
+The linked service referenced by source data set is not found 
+in the copy activity
+
+
+
+S1-> 
+because : 
+
+
+make dataset.json
+then 
+
+
+
+az datafactory dataset create ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name MariaDB_sensor_data ^
+  --properties @C:\Users\arefi\Desktop\F2025TEXTILE\dataset.json
+
+
+
+
+
+
+Make AzureSQL_sensor_data.json
+
+az datafactory dataset create ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name AzureSQL_sensor_data ^
+  --properties @C:\Users\arefi\Desktop\F2025TEXTILE\AzureSQL_sensor_data.json
+
+
+
+Make CopySensorDataPipeline.json
+
+az datafactory pipeline create ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name CopySensorDataPipeline ^
+  --pipeline @C:\Users\arefi\Desktop\F2025TEXTILE\CopySensorDataPipeline.json
+
+
+
+make copyPipeline.json
+
+
+az datafactory pipeline create ^
+  --resource-group t-rg ^
+  --factory-name iot-adf-nazmul ^
+  --name CopyPipeline_MariaDB_to_AzureSQL ^
+  --pipeline @C:\Users\arefi\Desktop\F2025TEXTILE\CopyPipeline.json
+
+
+
+......Now....
+
+
+
+az datafactory pipeline create-run ^
+  --resource-group t-rg ^
+  --factory-name iot-adf-nazmul ^
+  --name CopyPipeline_MariaDB_to_AzureSQL
+
+
+op- a45ecc71-829e-11f0-8c95-5ce42af56bb6
+
+   "095b4f4a-82a6-11f0-99e9-5ce42af56bb6"
+
+
+
+az datafactory pipeline-run show ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --run-id 401c8750-831f-11f0-b38f-5ce42af56bb6
+
+
+
+
+"runId": "32bc916d-8314-11f0-88dc-5ce42af56bb6"
+
+
+
+..................27-08-2025bbfinal run for synch..........................
+
+
+1. Create MariaDB Dataset (Source)
+MariaDBDataset.json
+{
+  "type": "RelationalTable",
+  "linkedServiceName": {
+    "type": "LinkedServiceReference",
+    "referenceName": "MariaDBLinkedService"
+  },
+  "typeProperties": {
+    "schema": "public",
+    "tableName": "sensor_data"
+  }
+}
+
+CLI
+az datafactory dataset create ^
+  --resource-group t-rg ^
+  --factory-name iot-adf-nazmul ^
+  --name MariaDBDataset ^
+  --properties @"C:\Users\arefi\Desktop\F2025TEXTILE\MariaDBDataset.json"
+
+2. Create Azure SQL Dataset (Sink)
+AzureSQLDataset.json
+{
+  "type": "AzureSqlTable",
+  "linkedServiceName": {
+    "type": "LinkedServiceReference",
+    "referenceName": "AzureSQLLinkedService"
+  },
+  "typeProperties": {
+    "schema": "dbo",
+    "tableName": "sensor_data"
+  }
+}
+
+CLI
+az datafactory dataset create ^
+  --resource-group t-rg ^
+  --factory-name iot-adf-nazmul ^
+  --name AzureSQLDataset ^
+  --properties @"C:\Users\arefi\Desktop\F2025TEXTILE\AzureSQLDataset.json"
+
+3. Create Pipeline with Copy Activity
+CopyPipeline.json
+{
+  "properties": {
+    "activities": [
+      {
+        "name": "CopyFromMariaDBToAzureSQL",
+        "type": "Copy",
+        "typeProperties": {
+          "source": {
+            "type": "RelationalSource"
+          },
+          "sink": {
+            "type": "SqlSink"
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "MariaDBDataset",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "AzureSQLDataset",
+            "type": "DatasetReference"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+CLI
+az datafactory pipeline create ^
+  --resource-group t-rg ^
+  --factory-name iot-adf-nazmul ^
+  --name CopyPipeline ^
+  --pipeline @"C:\Users\arefi\Desktop\F2025TEXTILE\CopyPipeline.json"
+
+
+
+4. Trigger the pipeline run:
+
+az datafactory pipeline create-run ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --name CopyPipeline
+
+
+Check the run status:
+
+az datafactory pipeline-run show ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --run-id <your-run-id>
+
+
+
+.............................................................Result ....
+ "runStart": "2025-08-27T08:35:13.178419+00:00",
+  "status": "InProgress"
+
+
+Congrats....................................
+
+
+..............................................1️⃣ Monitor Progress.............................
+
+Monitor Progress
+
+You can keep checking the run status:
+
+az datafactory pipeline-run show ^
+  --factory-name iot-adf-nazmul ^
+  --resource-group t-rg ^
+  --run-id bed6cc14-8320-11f0-b523-5ce42af56bb6
+
+
+Wait until "status" changes to Succeeded or Failed.
+
+2️⃣ Check Activity Run Details
+
+Once the pipeline completes, inspect each activity:
+
+az datafactory activity-run list ^
+  --factory-name iot-adf-nazmul ^
+  --pipeline-name CopyPipeline ^
+  --resource-group t-rg ^
+  --run-id bed6cc14-8320-11f0-b523-5ce42af56bb6 ^
+  --output table
+
+
+This shows whether CopyFromMariaDBToAzureSQL succeeded or has any errors.
+
+3️⃣ Verify Data in Azure SQL
+
+After the pipeline succeeds, connect to your Azure SQL database:
+
+SELECT TOP 5 * FROM sensor_data;
+
+........................................
+
+CREATE USER 'iotuser'@'%' IDENTIFIED BY 'mariadb';
+GRANT ALL PRIVILEGES ON *.* TO 'iotuser'@'%';
+FLUSH PRIVILEGES;
+
+........................
+✅ What you have achieved in Azure Data Factory (ADF)
+
+Azure Data Factory Setup
+
+ADF instance iot-adf-nazmul created.
+
+Self-Hosted Integration Runtime (SHIR) configured.
+
+Linked Services
+
+MariaDBLinkedService pointing to your Raspberry Pi MariaDB.
+
+AzureSqlLinkedService pointing to Azure SQL Database.
+
+Datasets
+
+MariaDB_sensor_data (source dataset).
+
+AzureSQL_sensor_data (sink dataset).
+
+Pipeline
+
+CopyPipeline_MariaDB_to_AzureSQL created.
+
+Copy activity CopyFromMariaDBToAzureSQL configured to move data from MariaDB → Azure SQL.
+
+Triggered the pipeline successfully.
+
+Validation
+
+Datasets and linked services are visible in ADF.
+
+Pipeline shows “InProgress” or failed depending on remote connection to MariaDB.
+
+Real issue identified: Remote connection from SHIR to MariaDB blocked (network/firewall issue).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

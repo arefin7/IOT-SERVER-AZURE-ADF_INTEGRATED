@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "activities": [
+      {
+        "name": "CopyFromMariaDBToAzureSQL",
+        "type": "Copy",
+        "typeProperties": {
+          "source": {
+            "type": "RelationalSource"
+          },
+          "sink": {
+            "type": "SqlSink"
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "MariaDBDataset",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "AzureSQLDataset",
+            "type": "DatasetReference"
+          }
+        ]
+      }
+    ]
+  }
+}

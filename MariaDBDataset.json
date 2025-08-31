@@ -1,0 +1,11 @@
+{
+  "type": "RelationalTable",
+  "linkedServiceName": {
+    "type": "LinkedServiceReference",
+    "referenceName": "MariaDBLinkedService"
+  },
+  "typeProperties": {
+    "schema": "public",
+    "tableName": "sensor_data"
+  }
+}

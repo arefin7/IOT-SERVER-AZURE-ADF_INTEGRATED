@@ -1,0 +1,7 @@
+{
+  "name": "ManualTrigger",
+  "properties": {
+    "type": "ManualTrigger",
+    "typeProperties": {}
+  }
+}

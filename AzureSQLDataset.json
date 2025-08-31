@@ -1,0 +1,11 @@
+{
+  "type": "AzureSqlTable",
+  "linkedServiceName": {
+    "type": "LinkedServiceReference",
+    "referenceName": "AzureSQLLinkedService"
+  },
+  "typeProperties": {
+    "schema": "dbo",
+    "tableName": "sensor_data"
+  }
+}
